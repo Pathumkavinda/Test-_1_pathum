@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<!-- Previous head and style sections remain the same -->
+<!-- ... (previous code unchanged until the script section) ... -->
+<script>
+    const apiUrl = 'http://localhost:8080/rest_service/api/students';
+    const modal = document.getElementById('editModal');
+    const toast = document.getElementById('toast');
+    let currentEditId = null;
+
+    // Show toast notification with longer duration for errors
+    function showToast(message, type = 'success') {
+        toast.textContent = message;
+        toast.className = `toast ${type}`;
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, type === 'error' ? 5000 : 3000); // Show errors longer
+    }
+
+    // Validate student data
+    function validateStudentData(id, name) {
+        if (!id || id.trim() === '') {
+            throw new Error('Student ID is required');
+        }
+        if (!name || name.trim() === '') {
+            throw new Error('Student name is required');
+        }
+        // Ensure ID is numeric
+        if (isNaN(id)) {
+            throw new Error('Student ID must be a number');
+        }
+        return true;
+    }
+
+    // Create a new student with improved error handling
+    async function createStudent(event) {
+        event.preventDefault();
+        const idInput = document.getElementById('studentId');
+        const nameInput = document.getElementById('studentName');
+        const id = idInput.value.trim();
+        const name = nameInput.value.trim();
+
+        try {
+            // Validate input
+            validateStudentData(id, name);
+
+            // Show loading state
+            const submitButton = event.target.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+            submitButton.disabled = true;
+
+            // Make the API call
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    id: parseInt(id), // Convert ID to number
+                    name: name
+                })
+            });
+
+            // Log response for debugging
+            console.log('Create Response Status:', response.status);
+            const responseData = await response.text();
+            console.log('Create Response Data:', responseData);
+
+            // Check if response is ok (status in 200-299 range)
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${responseData}`);
+            }
+
+            // Success case
+            showToast('Student created successfully');
+            document.getElementById('studentForm').reset();
+            await getStudents(); // Refresh the list
+
+        } catch (error) {
+            console.error('Create student error:', error);
+            showToast(`Failed to create student: ${error.message}`, 'error');
+        } finally {
+            // Reset button state
+            const submitButton = event.target.querySelector('button[type="submit"]');
+            submitButton.innerHTML = '<i class="fas fa-plus"></i> Add Student';
+            submitButton.disabled = false;
+        }
+    }
+
+    // Fetch and display all students with error handling
+    async function getStudents() {
+        const tableBody = document.querySelector('#studentsTable tbody');
+        try {
+            const response = await fetch(apiUrl);
+            
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}`);
+            }
+
+            const students = await response.json();
+            tableBody.innerHTML = '';
+
+            if (students.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="empty-state">
+                            <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                            <p>No students found. Add a new student to get started.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            students.forEach(student => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${student.id}</td>
+                    <td>${student.name}</td>
+                    <td class="actions">
+                        <button class="btn btn-edit" onclick="openEditModal(${student.id}, '${student.name}')">
+                            <i class="fas fa-edit"></i>
+                            Edit
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteStudent(${student.id})">
+                            <i class="fas fa-trash"></i>
+                            Delete
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        } catch (error) {
+            console.error('Fetch students error:', error);
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="empty-state" style="color: var(--danger-color);">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>Error loading students: ${error.message}</p>
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    // Rest of the code (update, delete, modal functions) remains the same
+    // ... (previous code unchanged) ...
+
+    // Initial load
+    getStudents();
+</script>
+</html>
